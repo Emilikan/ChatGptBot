@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  db:
+    container_name: ${PROJECT_NAME}_database
+    image: postgres:14
+    volumes:
+      - ${PROJECT_NAME}_database_data:/var/lib/postgresql/data
+    ports:
+      - ${POSTGRES_HOST_PORT}:${POSTGRES_PORT}
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    restart: always
+
+  migrations:
+    container_name: ${PROJECT_NAME}_migrations
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile
+    command: ["make", "migrate-up"]
+    env_file:
+      - .env
+    depends_on:
+      - db
+
+  redis:
+    image: redis
+    container_name: ${PROJECT_NAME}_redis
+    restart: always
+    ports:
+      - ${REDIS_HOST_PORT}:${REDIS_PORT}
+    volumes:
+      - ${PROJECT_NAME}_redis_data:/data
+    command: redis-server --appendonly yes
+
+  tg_bot:
+    container_name: ${PROJECT_NAME}_tg_bot
+    restart: always
+    build:
+      context: ../
+      dockerfile: deploy/Dockerfile
+    ports:
+      - ${WEBHOOK_PORT}:${WEBHOOK_PORT}
+    command: ["make", "run-tg-bot"]
+    env_file:
+      - .env
+    depends_on:
+      migrations:
+        condition: service_started
+      redis:
+        condition: service_started
+  
+volumes:
+ chat_gpt_database_data:
+ chat_gpt_redis_data:
